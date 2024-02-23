@@ -1,7 +1,7 @@
 import 'package:flutter/rendering.dart';
 
 class GemEntity {
-  final String num;
+  final BigInt num;
   final Color color;
 
   const GemEntity({

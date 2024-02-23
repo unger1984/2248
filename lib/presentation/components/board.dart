@@ -1,14 +1,15 @@
 import 'dart:math';
 
 import 'package:flame/components.dart';
-import 'package:flame/experimental.dart';
+import 'package:flame/events.dart';
+import 'package:game2248/domain/entities/gem_entity.dart';
 import 'package:game2248/domain/entities/line_entity.dart';
-import 'package:game2248/presentation/components/main/gem.dart';
-import 'package:game2248/presentation/components/main/line.dart';
-import 'package:game2248/presentation/game_2248.dart';
+import 'package:game2248/presentation/components/gem.dart';
+import 'package:game2248/presentation/components/line.dart';
+import 'package:game2248/presentation/game2248.dart';
 import 'package:game2248/utils/const.dart';
 
-class BoardComponent extends PositionComponent with HasGameRef<Game2248>, DragCallbacks {
+class Board extends PositionComponent with HasGameRef<Game2248>, DragCallbacks {
   final _random = Random();
   static final boardSize = Vector2(5, 8);
   final _board = <Vector2, Gem?>{};
@@ -22,7 +23,7 @@ class BoardComponent extends PositionComponent with HasGameRef<Game2248>, DragCa
     await super.onLoad();
     // debugMode = true;
 
-    size = Vector2(boardSize.x * (Gem.gemSize.x + 20), boardSize.y * (Gem.gemSize.y + 20));
+    size = Vector2(boardSize.x * (Gem.gemSize.x + 40) - 40, boardSize.y * (Gem.gemSize.y + 40) - 40);
     position = Vector2(gameRef.size.x / 2 - scaledSize.x / 2, gameRef.size.y / 2 - scaledSize.y / 2);
 
     await add(_line);
@@ -30,20 +31,7 @@ class BoardComponent extends PositionComponent with HasGameRef<Game2248>, DragCa
     await _fillEmpty();
     _spawnNewGems();
 
-    // Future.delayed(Duration(seconds: 2), () {
-    //   _line.points = [
-    //     Vector2(10, 10),
-    //     Vector2(100, 40),
-    //     Vector2(100, 100),
-    //   ];
-    //   Future.delayed(Duration(seconds: 2), () {
-    //     _line.points = [
-    //       Vector2(100, 100),
-    //       Vector2(200, 40),
-    //       Vector2(400, 100),
-    //     ];
-    //   });
-    // });
+    // final bigValue = BigInt.from(BigInt.from(1e+300) / BigInt.from(650000000));
   }
 
   Vector2 coordinate(Vector2 pos) {
@@ -56,7 +44,7 @@ class BoardComponent extends PositionComponent with HasGameRef<Game2248>, DragCa
   }
 
   Future<void> _fillEmpty() async {
-    removeAll(children);
+    // removeAll(children);
     _board.clear();
     for (double col = 0; col < boardSize.x; col++) {
       for (double row = 0; row < boardSize.y; row++) {
@@ -64,7 +52,7 @@ class BoardComponent extends PositionComponent with HasGameRef<Game2248>, DragCa
         final bg = PositionComponent(size: Gem.gemSize, anchor: Anchor.center);
         _back[pos] = bg;
         await add(bg);
-        bg.position = Vector2(col * (Gem.gemSize.x + 25), row * (Gem.gemSize.y + 22)) + bg.size / 2;
+        bg.position = Vector2(col * (Gem.gemSize.x + 40), row * (Gem.gemSize.y + 40)) + bg.size / 2;
         _spawnGem(GemEmpty(), pos);
         // final gem = GemEmpty();
         // _board[pos] = gem;
@@ -153,21 +141,6 @@ class BoardComponent extends PositionComponent with HasGameRef<Game2248>, DragCa
     return GemNum(config: cfg);
   }
 
-  // Future<void> onDragGem(GemNum first, GemNum next) async {
-  //   if (!_toClean.contains(first)) _toClean.add(first);
-  //   if (!_toClean.contains(next)) {
-  //     if (_isAdjacent(_toClean.last.pos, next.pos)) {
-  //       if (_isSumm(_toClean.last, next)) _toClean.add(next);
-  //     }
-  //   } else if (_toClean.length > 1) {
-  //     final prev = _toClean.elementAt(_toClean.length - 2);
-  //     if (prev.pos.x == next.pos.x && prev.pos.y == next.pos.y) {
-  //       _toClean.remove(_toClean.last);
-  //     }
-  //   }
-  //   _line.points = _toClean.map((item) => coordinate(item.pos)).toList();
-  // }
-
   bool _isAdjacent(Vector2 first, Vector2 next) {
     final dx = (first.x - next.x).abs().toInt();
     final dy = (first.y - next.y).abs().toInt();
@@ -186,6 +159,7 @@ class BoardComponent extends PositionComponent with HasGameRef<Game2248>, DragCa
 
   @override
   void onDragStart(DragStartEvent event) {
+    super.onDragStart(event);
     final found = gameRef.componentsAtPoint(event.devicePosition).whereType<GemNum>().toList();
     _toClean.clear();
     if (found.isNotEmpty) _toClean.add(found.first);
@@ -193,13 +167,14 @@ class BoardComponent extends PositionComponent with HasGameRef<Game2248>, DragCa
 
   @override
   void onDragUpdate(DragUpdateEvent event) {
-    final found = gameRef.componentsAtPoint(event.devicePosition).whereType<GemNum>().toList();
+    final found = gameRef.componentsAtPoint(event.deviceStartPosition).whereType<GemNum>().toList();
     if (found.isNotEmpty) {
       final next = found.first;
       if (!_toClean.contains(next)) {
         if (next != _toClean.last) {
           if (_isAdjacent(_toClean.last.pos, next.pos)) {
             if (_isSumm(_toClean.last, next)) {
+              next.handleHilight();
               _toClean.add(next);
             }
           }
@@ -216,7 +191,7 @@ class BoardComponent extends PositionComponent with HasGameRef<Game2248>, DragCa
 
     for (var index = 0; index < _toClean.length; index++) {
       final gem = _toClean.elementAt(index);
-      var end = event.localPosition;
+      var end = event.localStartPosition;
       if (index != _toClean.length - 1) {
         end = coordinate(_toClean.elementAt(index + 1).pos);
       }
@@ -227,16 +202,30 @@ class BoardComponent extends PositionComponent with HasGameRef<Game2248>, DragCa
 
   @override
   Future<void> onDragEnd(DragEndEvent event) async {
+    super.onDragEnd(event);
     if (_toClean.length > 1) {
       var lastPos = _toClean.last.pos.clone();
       final indexes = <int>[];
+      final toNew = <GemNum>[];
       for (var gem in _toClean) {
-        final pos = gem.pos.clone();
         final index = allGems.indexWhere((cfg) => cfg == gem.config);
         indexes.add(index);
+        toNew.add(gem);
+      }
+      _toClean.clear();
+      _line.points = [];
+      await Future.wait(toNew.indexed.map((obj) async {
+        final (index, gem) = obj;
+        final pos = gem.pos.clone();
+
+        if (index == toNew.length - 1) {
+          await gem.spawn();
+        } else {
+          await gem.destroy(coordinate(toNew.last.pos));
+        }
         remove(gem);
         await _spawnGem(GemEmpty(), pos);
-      }
+      }));
       final unique = indexes.toSet().toList();
       var sumindex = 0;
       for (var index in unique) {
@@ -244,18 +233,12 @@ class BoardComponent extends PositionComponent with HasGameRef<Game2248>, DragCa
       }
       var newIndex = indexes.last + sumindex;
       if (newIndex > allGems.length - 1) newIndex = allGems.length - 1;
-      final cfg = allGems.elementAt(newIndex);
+      final cfg = GemEntity(num: allGems.elementAt(newIndex).num * BigInt.from(2), color: getRandom());
+      // final cfg = allGems.elementAt(newIndex);
       await _spawnGem(GemNum(config: cfg), lastPos);
       _spawnNewGems();
+    } else {
+      _line.points = [];
     }
-    _toClean.clear();
-    _line.points = [];
-  }
-
-  @override
-  void onGameResize(Vector2 size) {
-    scale = Vector2.all(size.x / maxWidth);
-    position = Vector2(size.x / 2 - scaledSize.x / 2, size.y / 2 - scaledSize.y / 2);
-    super.onGameResize(size);
   }
 }
